@@ -106,4 +106,4 @@ class Worker(Robot):
 		Robot.executeClaws(self, claws1, claws2)
 		
 r = Robot()
-#w = Worker()
+w = Worker()
