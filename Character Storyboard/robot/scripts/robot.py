@@ -44,16 +44,22 @@ class Robot:
 	def rotateBackRight(self):
 		self.rotateParts("backRight", self.rotateBackRight)
 
-	def adjustClaws(self, part):	
+	def adjustClaws(self, part, adjustClaw):	
 		n = cmds.getAttr("{}|{}.adjustClaws".format(self.robot, part))
 		claws = [("Left", "Z", 90-n), ("Right", "Z", 90+n), ("Top", "Y", n), ("Bottom", "Y", -n)]
 		claws = tuple(claw for claw in claws if cmds.getAttr("{}.claw{}".format(part, claw[0])))
 		for _, claw in enumerate(claws):
 			name, r, d = claw
 			cmds.setAttr("{}|ballParent1|ballParent2|parentClaw{}.rotate{}".format(part, name, r), d)
-		self.setJob("{}|{}.adjustClaws".format(self.robot, part), lambda : self.adjustClaws(part))
+		self.setJob("{}|{}.adjustClaws".format(self.robot, part), adjustClaw)
+		
+	def adjustClaws1(self, claws1 = "claws"):
+		self.adjustClaws(claws1, lambda : self.adjustClaws1(claws1))
+		
+	def adjustClaws2(self, claws2 = ""):
+		self.adjustClaws(claws2, lambda : self.adjustClaws2(claws2))
 
-	def adjustLimbs(self, maximum = 0.58):
+	def adjustLimbs(self, maximum = 0.58, left = "screen", right = "claws"):
 		def slope(sx, sy, ex, ey):
 			ex = -ex if sx < 0 else ex
 			y = abs(ey-sy)
@@ -61,8 +67,8 @@ class Robot:
 			return y/x if x > 0 else y
 			
 		n = cmds.getAttr(self.limbs)
-		limbs = [("claws", "arm", -n+0.74+0.118, -n+0.484, slope(-n+0.74+0.118, -n+0.484, 0.278, -0.096)), ("screen", "arm", n-0.74-0.118, -n+0.484, slope(n-0.74-0.118, -n+0.484, 0, -0.096)), ("frontLeft", "leg", n+0.176, n-0.096, slope(0.176, -0.096, 0.727, 0.385)), ("frontRight", "leg", n+0.223, n-0.096, slope(0.223, -0.096, 0.727, 0.385)), ("backLeft", "leg", -n-0.223, n-0.096, slope(-0.223, -0.096, 0.727, 0.385)), ("backRight", "leg", -n-0.176, n-0.096, slope(-0.176, -0.096, 0.727, 0.385))]
-		limbs = tuple(limb for limb in limbs if cmds.getAttr("robot.{}".format(limb[0])))
+		limbs = [(left, "arm", n-0.74-0.118, -n+0.484, slope(n-0.74-0.118, -n+0.484, 0, -0.096)), (right, "arm", -n+0.74+0.118, -n+0.484, slope(-n+0.74+0.118, -n+0.484, 0.278, -0.096)), ("frontLeft", "leg", n+0.176, n-0.096, slope(0.176, -0.096, 0.727, 0.385)), ("frontRight", "leg", n+0.223, n-0.096, slope(0.223, -0.096, 0.727, 0.385)), ("backLeft", "leg", -n-0.223, n-0.096, slope(-0.223, -0.096, 0.727, 0.385)), ("backRight", "leg", -n-0.176, n-0.096, slope(-0.176, -0.096, 0.727, 0.385))]
+		limbs = tuple(limb for limb in limbs if cmds.getAttr("{}.{}".format(self.robot, limb[0])))
 		for _, limb in enumerate(limbs):
 			name, m, j, y, s = limb
 			ex = 0.278 if m == "arm" else 0.727
@@ -73,7 +79,7 @@ class Robot:
 				mov.pop()
 			for _, p in enumerate(tuple(mov)):
 				t, d = p
-				cmds.setAttr("{}.translate{}".format(name, t), d)
+				cmds.setAttr("{}|{}.translate{}".format(self.robot, name, t), d)
 		self.setJob(self.limbs, self.adjustLimbs)
 
 	def setJob(self, attribute, method):
@@ -86,10 +92,14 @@ class Robot:
 			self.setJob("{}.{}".format(self.body, p), rotateMethods[i])
 	
 	def executeClaws(self, claws1 = "claws", claws2 = ""):
-		claws = tuple(c for c in (claws1, claws2) if c != "")
-		for _, c in enumerate(claws):
-			self.setJob("{}|{}.adjustClaws".format(self.robot, c), lambda : self.adjustClaws(c))
-			
+		parts = [claws1, claws2]
+		clawsMethods = [lambda : self.adjustClaws1(claws1), lambda : self.adjustClaws2(claws2)]
+		if claws2 == "":
+			parts.pop()
+			clawsMethods.pop()
+		for i, p in enumerate(parts):
+			self.setJob("{}|{}.adjustClaws".format(self.robot, p), clawsMethods[i])
+
 	def execute(self):
 		self.setJob(self.limbs, self.adjustLimbs)
 		self.executeClaws()
@@ -104,6 +114,9 @@ class Worker(Robot):
 		
 	def executeClaws(self, claws1 = "clawsLeft", claws2 = "clawsRight"):
 		Robot.executeClaws(self, claws1, claws2)
+		
+	def adjustLimbs(self, maximum = 0.58, left = "clawsLeft", right = "clawsRight"):
+		Robot.adjustLimbs(self, maximum, left, right)
 		
 r = Robot()
 w = Worker()
